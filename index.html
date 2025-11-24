@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Rahul's Chat server</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/openpgp@5.10.2/dist/openpgp.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark-dimmed.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: hsl(240 10% 6%);
+            --surface: hsl(240 10% 12% / 0.6);
+            --surface-2: hsl(240 10% 16% / 0.4);
+            --border: hsl(240 8% 24% / 0.35);
+            --text: hsl(0 0% 96%);
+            --muted: hsl(220 10% 70%);
+            --accent: hsl(258 90% 66%);
+            --accent-2: hsl(200 100% 60%);
+            --success: hsl(152 70% 45%);
+            --danger: hsl(0 84% 60%);
+            --warning: hsl(42 100% 60%);
+            --radius: 10px;
+            --shadow: 0 10px 30px hsl(240 50% 3% / 0.5);
+            --grid-size: 26px;
+            --grid-color: color-mix(in srgb, var(--text), transparent 92%);
+            --border-color: color-mix(in srgb, canvasText, transparent 80%);
+            --tree-focus-color: hsl(0 90% 66%);
+            --gutter: clamp(16px, 4vw, 32px);
+            --app-max-w: 1200px;
+        }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            color-scheme: dark;
+            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            background: light-dark(#fff, #000);
+            color: var(--text);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            accent-color: var(--accent);
+            position: relative;
+            font-size: 13px;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            justify-items: center;
+            align-items: start;
+            padding: var(--gutter);
+            row-gap: var(--gutter);
+            min-height: 100vh;
+        }
+        body::before {
+            --size: 45px;
+            --line: color-mix(in hsl, canvasText, transparent 80%);
+            content: '';
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+            background: linear-gradient(
+                  90deg,
+                  var(--line) 1px,
+                  transparent 1px var(--size)
+                ) calc(var(--size) * 0.36) 50% / var(--size) var(--size),
+              linear-gradient(var(--line) 1px, transparent 1px var(--size)) 0%
+                calc(var(--size) * 0.32) / var(--size) var(--size);
+            mask: linear-gradient(-20deg, transparent 50%, white);
+            top: 0;
+            transform-style: flat;
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+.header {
+            background: color-mix(in srgb, canvas, transparent 70%);
+            backdrop-filter: saturate(140%) blur(16px);
+            padding: 8px 14px;
+            display: flex; justify-content: space-between; align-items: center;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            min-height: 56px;
+            width: min(var(--app-max-w), 100%);
+            margin: 0;
+            position: relative; z-index: 10;
+        }
+.logo { font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; display: flex; align-items: center; gap: 10px; font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui; }
+.status-indicator { width: 8px; height: 8px; border-radius: 50%; animation: pulse 2s infinite; box-shadow: 0 0 0 4px hsl(152 80% 40% / 0.18); background: linear-gradient(135deg, hsl(152 80% 48%), hsl(152 70% 42%)); }
+.status-indicator.offline { background: linear-gradient(135deg, hsl(240 3% 50%), hsl(240 3% 40%)); box-shadow: 0 0 0 4px hsl(240 3% 40% / 0.18); }
+.status-indicator.connecting { background: linear-gradient(135deg, hsl(42 100% 60%), hsl(32 100% 56%)); box-shadow: 0 0 0 4px hsl(42 100% 60% / 0.20); }
+.status-indicator.online { background: linear-gradient(135deg, hsl(152 80% 48%), hsl(152 70% 42%)); box-shadow: 0 0 0 4px hsl(152 80% 40% / 0.18); }
+.header-right { display: inline-flex; align-items: center; gap: 10px; }
+.github-link { color: color-mix(in srgb, canvasText, transparent 0%); display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--border-color); background: color-mix(in srgb, canvas, canvasText 5%); }
+.github-link:hover { border-color: var(--tree-focus-color); background: color-mix(in srgb, var(--tree-focus-color), transparent 92%); }
+        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.9); opacity: 0.6; } }
+        .container { height: 100%; display: grid; grid-template-columns: clamp(220px, 26vw, 300px) 1fr; gap: var(--gutter); overflow: hidden; width: min(var(--app-max-w), 100%); margin: 0; }
+        @media (max-width: 900px) { .container { grid-template-columns: 1fr; grid-template-rows: 1fr auto; } .sidebar { max-height: 35vh; overflow-y: auto; } }
+
+        /* Drawer + Mobile */
+        .mobile-menu-btn { display: none; border: 2px solid var(--border-color); background: color-mix(in srgb, canvas, canvasText 5%); color: canvasText; border-radius: 8px; padding: 6px; cursor: pointer; align-items: center; justify-content: center; }
+        .mobile-menu-btn:focus-visible { outline: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--tree-focus-color), transparent 85%); border-color: var(--tree-focus-color); }
+        .drawer-backdrop { position: fixed; inset: 0; background: color-mix(in srgb, canvas, transparent 60%); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 1400; }
+        .drawer-backdrop.show { opacity: 1; pointer-events: auto; }
+
+        @media (max-width: 600px) { .mobile-menu-btn { display: inline-flex; } }
+
+        /* Mobile optimizations */
+        @media (max-width: 600px) {
+            :root { --gutter: clamp(10px, 4vw, 18px); }
+            body { min-height: 100dvh; padding: var(--gutter); row-gap: var(--gutter); }
+            body.drawer-open { overflow: hidden; }
+            .header { width: 100%; border-radius: 10px; }
+            .container { 
+                width: 100%;
+                height: calc(100dvh - (var(--gutter) * 2) - 64px);
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr; /* chat only; sidebar becomes drawer */
+                gap: var(--gutter);
+                overflow: visible;
+            }
+            .sidebar { 
+                position: fixed; left: var(--gutter); top: var(--gutter);
+                width: min(92vw, 420px); height: calc(100dvh - var(--gutter) * 2);
+                transform: translateX(-110%);
+                transition: transform .25s ease;
+                z-index: 1500;
+                max-height: none; overflow-y: auto; -webkit-overflow-scrolling: touch;
+                border-radius: 10px;
+                touch-action: pan-y; overscroll-behavior: contain;
+                scrollbar-gutter: stable both-edges;
+            }
+            .sidebar.open { transform: translateX(0); }
+            .messages { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+            .input-area { 
+                position: sticky; bottom: 0; left: 0; right: 0;
+                padding-bottom: calc(10px + env(safe-area-inset-bottom));
+                background: color-mix(in srgb, canvas, transparent 60%);
+                backdrop-filter: blur(6px);
+                border-top: 2px solid var(--border-color);
+            }
+            .msg-input { min-height: 44px; max-height: 40dvh; font-size: 14px; }
+            .send-btn { min-height: 44px; font-size: 13px; padding: 0 14px; }
+            .btn { min-height: 40px; }
+            .input, .file-input { min-height: 40px; }
+        }
+.sidebar { 
+            --_border: var(--border-color);
+            background: color-mix(in srgb, canvas, transparent 88%);
+            backdrop-filter: blur(18px);
+            padding: 12px;
+            border: 2px solid var(--_border);
+            border-radius: 12px;
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            font-family: 'Noto Sans Mono', monospace;
+            font-size: .8rem;
+            color: light-dark(hsl(0 0% 54%), hsl(0 0% 44%));
+        }
+.chat-area { background: color-mix(in srgb, canvas, transparent 78%); backdrop-filter: blur(10px); display: flex; flex-direction: column; overflow: hidden; border: 2px solid var(--border-color); border-radius: 12px; }
+
+        .input, .file-input, .msg-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            background: color-mix(in srgb, canvas, canvasText 5%);
+            color: canvasText;
+            font: inherit; font-size: 12px;
+            transition: border-color .2s ease, box-shadow .2s ease, background .2s ease, transform .05s ease;
+        }
+        .input { margin-bottom: 12px; }
+        .file-input { margin-bottom: 10px; }
+        .input:hover, .file-input:hover, .msg-input:hover { background: color-mix(in srgb, canvas, canvasText 7%); }
+        .input:focus, .file-input:focus, .msg-input:focus {
+            outline: none;
+            border-color: var(--tree-focus-color);
+            box-shadow: 0 0 0 6px color-mix(in srgb, var(--tree-focus-color), transparent 85%);
+            background: color-mix(in srgb, canvas, canvasText 8%);
+        }
+        .input::placeholder, .msg-input::placeholder { color: color-mix(in srgb, canvasText, transparent); }
+
+        .btn, .send-btn, .test-btn, .connect-btn, .accept-btn, .decline-btn {
+            border: none; cursor: pointer; font: inherit; font-weight: 600; font-size: 12px;
+            padding: 8px 12px; border-radius: 6px; transition: transform .08s ease, box-shadow .2s ease, filter .2s ease, opacity .2s ease;
+        }
+        /* Sidebar buttons — Jhey-inspired ghost/outline */
+        .sidebar .btn {
+            background: color-mix(in srgb, canvas, canvasText 5%);
+            color: canvasText;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+        }
+        .sidebar .btn:hover { border-color: var(--tree-focus-color); background: color-mix(in srgb, var(--tree-focus-color), transparent 93%); }
+        .sidebar .btn:focus-visible { outline: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--tree-focus-color), transparent 85%); border-color: var(--tree-focus-color); }
+        .sidebar .btn:active { transform: translateY(0); box-shadow: none; }
+
+        /* Send button — accent outline fill */
+.send-btn {
+            border: 2px solid var(--tree-focus-color);
+            background: color-mix(in srgb, var(--tree-focus-color), transparent 88%);
+            color: light-dark(#000, #fff);
+            border-radius: 6px;
+        }
+.send-btn:hover { background: color-mix(in srgb, var(--tree-focus-color), transparent 82%); }
+        .send-btn:focus-visible { outline: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--tree-focus-color), transparent 82%); }
+        .send-btn:active { transform: translateY(0); box-shadow: none; }
+
+        /* Keep other modal buttons as-is */
+        .test-btn { background: linear-gradient(135deg, var(--warning), hsl(32 100% 55%)); color: #1d1d1f; }
+        .decline-btn { background: linear-gradient(135deg, var(--danger), hsl(355 80% 52%)); color: white; }
+        .btn:disabled, .send-btn:disabled, .connect-btn:disabled { opacity: 0.55; cursor: not-allowed; filter: grayscale(0.2); }
+        .btn:hover, .test-btn:hover, .connect-btn:hover, .accept-btn:hover, .decline-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px hsl(258 90% 20% / 0.25); }
+        .btn:active, .test-btn:active, .connect-btn:active, .accept-btn:active, .decline-btn:active { transform: translateY(0); box-shadow: 0 4px 12px hsl(258 90% 20% / 0.15); }
+        .btn { width: 100%; margin-bottom: 10px; }
+
+        .messages { flex: 1; padding: 16px; overflow: hidden; border-bottom: 1px solid var(--border-color); }
+        .message { margin-bottom: 10px; padding: 10px 12px; border-radius: 10px; max-width: 72%; position: relative; animation: messageSlide 0.25s ease; }
+        @keyframes messageSlide { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
+.message.own { background: linear-gradient(135deg, hsl(258 90% 40% / 0.5), hsl(200 100% 40% / 0.5)); color: white; margin-left: auto; border-bottom-right-radius: 6px; border: 1px solid hsl(258 90% 66% / 0.25); }
+.message.other { background: hsl(240 10% 18% / 0.6); color: var(--text); border-bottom-left-radius: 6px; border: 1px solid var(--border); }
+        .msg-header { font-size: 10px; opacity: 0.7; margin-bottom: 4px; letter-spacing: 0.2px; font-weight: 600; color: var(--muted); }
+        .msg-content { word-wrap: break-word; font-size: 12px; line-height: 1.45; }
+        .msg-content a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 2px; }
+        .msg-content a:hover { filter: brightness(1.1); }
+.msg-content pre { position: relative; border: 1px solid var(--border-color); border-radius: 8px; overflow: auto; }
+.msg-content code { font-family: 'JetBrains Mono', 'Noto Sans Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; font-variant-ligatures: contextual; font-feature-settings: "calt" 1, "liga" 1; }
+.code-copy { position: absolute; top: 8px; right: 8px; padding: 4px 8px; font-size: 11px; border-radius: 6px; border: 1px solid var(--border-color); background: color-mix(in srgb, canvas, canvasText 5%); color: canvasText; cursor: pointer; }
+        .code-copy:hover { border-color: var(--tree-focus-color); }
+
+.input-area { padding: 10px 12px; display: flex; gap: 8px; align-items: center; background: hsl(240 10% 8% / 0.35); border-top: 1px solid var(--border-color); }
+.msg-input { flex: 1; resize: none; min-height: 36px; max-height: 72px; }
+
+        .status { font-size: 12px; color: var(--muted); text-align: center; padding: 18px; opacity: 0.9; font-style: italic; }
+        .user-id { background: color-mix(in srgb, canvas, canvasText 5%); color: canvasText; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; text-align: center; cursor: pointer; font-weight: 700; font-size: 13px; transition: all 0.2s ease; border: 2px solid var(--border-color); }
+        .user-id:hover { transform: translateY(-1px); box-shadow: var(--shadow); border-color: hsl(258 90% 66% / 0.4); }
+
+        .friend-item { padding: 8px 10px; margin-bottom: 6px; background: color-mix(in srgb, canvas, canvasText 4%); border-radius: 8px; cursor: pointer; border: 2px solid var(--border-color); transition: all 0.2s ease; font-weight: 600; font-size: 11px; letter-spacing: 0.2px; color: canvasText; }
+        .friend-item:hover { background: color-mix(in srgb, currentColor 6%, transparent); border-color: var(--tree-focus-color); transform: translateX(2px); }
+        .friend-item.active { border-color: var(--tree-focus-color); background: color-mix(in srgb, var(--tree-focus-color), transparent 80%); color: light-dark(#000, #fff); }
+
+        .error { color: hsl(0 95% 75%); background: hsl(0 60% 30% / 0.25); padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 12px; font-weight: 600; border: 1px solid hsl(0 80% 50% / 0.35); }
+        .success { color: hsl(152 80% 65%); background: hsl(152 40% 25% / 0.25); padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 12px; font-weight: 600; border: 1px solid hsl(152 60% 40% / 0.35); }
+
+        h3 { margin-bottom: 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.4px; color: var(--muted); text-transform: none; }
+        .key-upload { background: hsl(240 10% 14% / 0.5); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 20px; transition: all 0.2s ease; }
+        .key-upload h4 { margin-bottom: 10px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.3px; text-transform: none; }
+        .key-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; font-weight: 600; letter-spacing: 0.2px; text-transform: none; }
+        .status-bar { background: color-mix(in srgb, canvas, canvasText 4%); border: 2px solid var(--border-color); border-radius: 8px; padding: 10px 12px; margin-top: 12px; min-height: 36px; font-size: 11px; text-align: left; font-family: inherit; transition: all 0.2s ease; color: canvasText; }
+        .status-bar.success { background: hsl(152 60% 25% / 0.25); color: hsl(152 80% 65%); font-weight: 600; border-color: hsl(152 60% 40% / 0.35); }
+        .status-bar.error { background: hsl(0 60% 25% / 0.25); color: hsl(0 95% 75%); font-weight: 600; border-color: hsl(0 80% 50% / 0.35); }
+
+        .modal { position: fixed; inset: 0; background: color-mix(in srgb, canvas, transparent 60%); backdrop-filter: blur(10px); display: flex; justify-content: center; align-items: center; z-index: 5000; opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease; }
+        .modal.show { opacity: 1; visibility: visible; }
+        .modal-content { background: hsl(240 10% 12% / 0.86); backdrop-filter: blur(16px) saturate(140%); padding: 20px; border-radius: 14px; width: min(92vw, 560px); max-height: calc(100dvh - 40px); overflow: auto; text-align: center; border: 2px solid var(--border-color); box-shadow: var(--shadow); transform: translateY(6px) scale(0.98); transition: transform 0.25s ease; }
+        .modal.show .modal-content { transform: translateY(0) scale(1); }
+        .modal-content h2, .modal-content h3 { color: var(--text); margin-bottom: 12px; letter-spacing: -0.2px; }
+        .modal-content p { color: var(--muted); margin-bottom: 16px; }
+        .modal-buttons { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
+
+        .accept-btn { }
+        .decline-btn { }
+        .accept-btn:hover { box-shadow: 0 10px 24px hsl(152 60% 25% / 0.45); }
+        .decline-btn:hover { box-shadow: 0 10px 24px hsl(0 60% 25% / 0.45); }
+
+        .key-status { background: color-mix(in srgb, canvas, canvasText 4%); border: 2px solid var(--border-color); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 11px; color: light-dark(hsl(0 0% 40%), hsl(0 0% 60%)); transition: all 0.2s ease; }
+        .key-status.loaded { background: hsl(152 60% 25% / 0.25); color: hsl(152 80% 65%); border-color: hsl(152 60% 40% / 0.35); }
+        .key-status.loading { background: hsl(42 60% 25% / 0.25); color: hsl(42 100% 70%); border-color: hsl(42 80% 50% / 0.35); }
+        .key-status.error { background: hsl(0 60% 25% / 0.25); color: hsl(0 95% 75%); border-color: hsl(0 80% 50% / 0.35); }
+
+        .passphrase-input { background: color-mix(in srgb, canvas, canvasText 5%); border: 2px solid var(--border-color); border-radius: 8px; padding: 10px 12px; margin: 14px 0; color: canvasText; font: inherit; font-size: 14px; width: 100%; transition: all 0.2s ease; }
+        .passphrase-input:focus { outline: none; border-color: var(--tree-focus-color); box-shadow: 0 0 0 6px color-mix(in srgb, var(--tree-focus-color), transparent 80%); }
+        .modal-error { color: hsl(0 95% 75%); background: hsl(0 60% 25% / 0.25); padding: 8px 10px; border-radius: 10px; margin: 10px 0; font-size: 12px; border: 1px solid hsl(0 80% 50% / 0.35); text-align: left; }
+        .passphrase-help { color: var(--muted); font-size: 11px; margin-top: 8px; text-align: left; line-height: 1.4; }
+        .passphrase-help strong { color: var(--text); }
+        .debug-info { color: hsl(42 100% 70%); background: hsl(42 60% 25% / 0.25); padding: 8px 10px; border-radius: 10px; margin: 10px 0; font-size: 11px; border: 1px solid hsl(42 80% 50% / 0.35); text-align: left; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: hsl(240 10% 30% / 0.6); border-radius: 8px; }
+        ::-webkit-scrollbar-thumb:hover { background: hsl(240 10% 40% / 0.8); }
+
+        /* Toasts (non-intrusive notifications) */
+.toast-container { position: fixed; bottom: calc(var(--gutter) + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: grid; gap: 8px; width: min(92vw, 560px); z-index: 4000; pointer-events: none; }
+        .toast { pointer-events: auto; border-radius: 10px; padding: 10px 14px; border: 2px solid var(--border-color); background: color-mix(in srgb, canvas, canvasText 5%); color: canvasText; box-shadow: var(--shadow); backdrop-filter: blur(8px); animation: toastIn .25s ease both; }
+        .toast-success { border-color: hsl(152 60% 40%); background: color-mix(in srgb, hsl(152 60% 35%), transparent 85%); color: light-dark(#0a0, #c7ffd6); }
+        .toast-error { border-color: hsl(0 80% 50%); background: color-mix(in srgb, hsl(0 70% 35%), transparent 85%); color: light-dark(#700, #ffd1d1); }
+        .toast-info { border-color: var(--border-color); }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes toastOut { to { opacity: 0; transform: translateY(6px) scale(.98); } }
+        .toast.hide { animation: toastOut .22s ease forwards; }
+
+        /* Sidebar header + search (Jhey-inspired) */
+        .sidebar header { padding: .4rem; display: grid; gap: .4rem; border-bottom: 2px solid var(--border-color); }
+        .sidebar header h1 { font-size: .8rem; margin: 0; }
+        .sidebar header a { padding-block: .5rem; padding-left: 2px; display: flex; align-items: center; gap: .5rem; color: light-dark(hsl(0 0% 40%), hsl(0 0% 60%)); text-decoration: none; outline-color: var(--tree-focus-color); }
+        .sidebar header svg { width: 16px; }
+        .tree-search-input-container { position: relative; }
+        .tree-search-input-container > svg { position: absolute; top: 50%; left: 8px; translate: 0 -50%; width: 16px; opacity: 0.85; }
+        .tree-search-input-container kbd { border: 1px solid var(--border-color); position: absolute; top: 50%; width: 14px; height: 14px; font-size: .6rem; border-radius: 2px; color: canvasText; background: var(--border-color); display: grid; place-items: center; right: 8px; translate: 0 -50%; }
+        .tree-search-input { width: 100%; line-height: 1.8; border: 2px solid var(--border-color); border-radius: 2px; font-size: inherit; background: color-mix(in srgb, canvas, canvasText 5%); color: canvasText; padding-left: 26px; }
+        .tree-search-input::selection { background: var(--tree-focus-color); color: #fff; }
+        .tree-search-input:focus-visible { outline: none; border-color: var(--tree-focus-color); }
+        .tree-search-input::placeholder { color: color-mix(in srgb, canvasText, transparent); }
+
+        /* Collapsible groups like Jhey */
+        .sidebar .tree-group { padding: .5rem 0; border-bottom: 2px solid var(--border-color); }
+        .sidebar .tree-group:last-of-type { border-bottom: 0; }
+        .sidebar .tree-group > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; color: light-dark(hsl(0 0% 40%), hsl(0 0% 60%)); padding: 0.25rem 0.25rem; }
+        .sidebar .tree-group > summary::-webkit-details-marker { display: none; }
+        .sidebar .tree-group .tree-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 4px; }
+        .sidebar .tree-group .tree-icon:hover { background-color: color-mix(in srgb, currentColor 10%, transparent); }
+        .sidebar .tree-group .tree-icon svg { width: 14px; transition: rotate 0.26s ease-out; }
+        .sidebar .tree-group[open] .tree-icon svg { rotate: 135deg; }
+        .sidebar .tree-group .group-body { padding-left: .25rem; margin-top: .4rem; }
+
+        /* Footer attribution */
+        .footer {
+            background: color-mix(in srgb, canvas, transparent 70%);
+            backdrop-filter: saturate(140%) blur(10px);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            width: min(var(--app-max-w), 100%);
+            padding: 10px 14px;
+            color: var(--muted);
+            font-size: 12px;
+            text-align: center;
+            display: grid; place-items: center;
+        }
+        .footer a { color: var(--accent-2); font-weight: 700; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        /* Typography & content polish */
+        :root {
+            --heading-font: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+            --code-font: 'JetBrains Mono', 'Noto Sans Mono', ui-monospace, monospace;
+        }
+        .modal-content h2,
+        .modal-content h3,
+        .sidebar header h1,
+        .logo { font-family: var(--heading-font); }
+        .msg-content { font-size: 13px; line-height: 1.6; }
+        .msg-content h1, .msg-content h2, .msg-content h3 { font-family: var(--heading-font); margin: .6em 0 .4em; line-height: 1.15; color: var(--text); }
+        .msg-content h1 { font-size: 1.35rem; }
+        .msg-content h2 { font-size: 1.2rem; }
+        .msg-content h3 { font-size: 1.05rem; }
+        .msg-content p { margin: .4em 0; }
+        .msg-content ul, .msg-content ol { padding-left: 1.1em; margin: .4em 0; }
+        .msg-content li { margin: .2em 0; }
+        .msg-content blockquote { margin: .6em 0; padding: .6em .8em; border-left: 3px solid color-mix(in srgb, var(--accent), transparent 50%); background: color-mix(in srgb, canvas, canvasText 6%); border-radius: 6px; color: color-mix(in srgb, var(--text), transparent 5%); }
+        .msg-content pre { background: color-mix(in srgb, canvas, canvasText 6%); border: 1px solid var(--border-color); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent), transparent 90%); }
+        .msg-content pre code { font-family: var(--code-font); }
+        .hljs { background: transparent !important; }
+        /* KaTeX dark tweaks */
+        .katex { color: var(--text); }
+        .katex-display { margin: .4em 0; padding: .4em .2em; background: color-mix(in srgb, canvas, canvasText 6%); border-radius: 8px; border: 1px solid var(--border-color); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button id="openSidebarBtn" class="mobile-menu-btn" aria-label="Open sidebar" aria-expanded="false" aria-controls="mobileSidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 7h16M4 12h12M4 17h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <div class="logo">🔐 PGP Secure Chat</div>
+        <div class="header-right">
+            <div class="status-indicator" aria-label="Connection status" title="Connection status"></div>
+<a class="github-link" href="https://github.com/developerrahulofficial/Secure-chat" target="_blank" rel="noopener noreferrer" aria-label="Open GitHub repository">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.11.79-.25.79-.56v-2.02c-3.22.7-3.9-1.55-3.9-1.55-.53-1.35-1.3-1.71-1.3-1.71-1.06-.73.08-.72.08-.72 1.17.08 1.78 1.2 1.78 1.2 1.04 1.78 2.74 1.27 3.41.97.11-.76.41-1.27.75-1.56-2.57-.29-5.27-1.29-5.27-5.76 0-1.27.46-2.31 1.21-3.13-.12-.3-.52-1.5.12-3.12 0 0 .98-.31 3.2 1.19a11.14 11.14 0 0 1 5.82 0c2.22-1.5 3.2-1.19 3.2-1.19.64 1.62.24 2.82.12 3.12.75.82 1.21 1.86 1.21 3.13 0 4.48-2.71 5.47-5.29 5.76.42.36.8 1.07.8 2.16v3.2c0 .31.2.67.8.56A11.5 11.5 0 0 0 12 .5Z"/>
+                </svg>
+            </a>
+        </div>
+    </div>
+    <div id="sidebarBackdrop" class="drawer-backdrop" aria-hidden="true"></div>
+
+    <div class="container">
+        <div class="sidebar">
+            <header>
+                <h1>
+                    <a href="#" title="Rahul's chat server">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="m3.98448 20.5882-1.17645 1.6174m-.22047-1.3969 1.61739 1.1764M22.144.730378 20.6832 2.09646m.0474-1.413417 1.366 1.460757" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"></path>
+                            <path d="m3.90821 18.5526-.59559.0726c.03203.2626.23224.4732.49285.5185l.10274-.5911ZM20.601 4.22249l.3908.45525c.1679-.14415.2428-.36902.195-.58508-.0479-.21606-.2109-.38822-.424-.44793l-.1618.57776Zm.6023-.00906c-.0066-.33131-.2805-.59453-.6118-.58794-.3313.0066-.5945.28052-.5879.61183l1.1997-.02389Zm-.2556 17.30047-.1028.5911c.1766.0307.3576-.0191.4935-.1358.136-.1168.2127-.2881.2091-.4673l-.5998.012ZM3.03505 11.3945l-.39082-.4552c-.15222.1306-.22906.3287-.20477.5279l.59559-.0727ZM13.8216 1.69999c-.3191-.0894-.6502.0968-.7396.41588-.0894.31909.0968.65023.4159.73963l.3237-1.15551ZM4.29903 19.0078 20.9918 4.67774l-.7816-.91051L3.51739 18.0973l.78164.9105ZM20.0036 4.23732l.3442 17.28848 1.1997-.0239-.3442-17.28847-1.1997.02389ZM3.80547 19.1437 20.8449 22.105l.2055-1.1823-17.03946-2.9613-.20547 1.1823Zm-.3796-7.2939L14.0485 2.73064l-.7816-.91052L2.64423 10.9393l.78164.9105Zm1.07792 6.6301-.87316-7.158-1.19117.1453.87316 7.158 1.19117-.1453ZM20.7628 3.64473l-6.9412-1.94474-.3237 1.15551 6.9412 1.94474.3237-1.15551Z" fill="currentColor"></path>
+                            <path d="m15.7227 7.75 4.9996 13.5001M8.13672 14.2656 20.724 21.2521" stroke="currentColor" stroke-width="1.2"></path>
+                            <path d="M7.0673 8.29748c-.11208-.31184-.45574-.47378-.76758-.36169-.31184.11208-.47377.45574-.36169.76758l1.12927-.40589Zm2.05515 5.71782L7.0673 8.29748l-1.12927.40589 2.05515 5.71783 1.12927-.4059Z" fill="currentColor"></path>
+                            <path d="m15.6133 8.16406-5.1156-2.66251" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
+                        </svg>
+                        <span>Settings, Friends & PGP Keys</span>
+                    </a>
+                </h1>
+                <form onsubmit="return false;">
+                    <div class="tree-search-input-container">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
+                        </svg>
+                        <input type="text" id="friendSearch" placeholder="search friends..." aria-label="Search friends - Press slash to focus" class="tree-search-input" />
+                        <kbd>/</kbd>
+                    </div>
+                </form>
+            </header>
+            <details class="tree-group" open>
+                <summary>
+                    <span>Your ID</span>
+                    <span class="tree-icon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                    </span>
+                </summary>
+                <div class="group-body">
+                    <div id="userId" class="user-id" onclick="copyUserId()" title="Click to copy">Not Connected</div>
+                </div>
+            </details>
+
+            <details class="tree-group">
+                <summary>
+                    <span>PGP Keys</span>
+                    <span class="tree-icon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                    </span>
+                </summary>
+                <div class="group-body">
+                    <div class="key-upload">
+                        <h4>Upload PGP Keys</h4>
+                        <div class="key-status" id="keyStatus">No keys loaded</div>
+                        <div class="key-label">Private Key (.asc or .gpg)</div>
+                        <input type="file" id="privateKey" class="file-input" accept=".asc,.gpg">
+                        <div class="key-label">Public Key (.asc or .gpg)</div>
+                        <input type="file" id="publicKey" class="file-input" accept=".asc,.gpg">
+                        <button class="btn" onclick="uploadKeys()" id="loadKeysBtn">Load Keys</button>
+                    </div>
+                </div>
+            </details>
+
+            <details class="tree-group">
+                <summary>
+                    <span>Add Friend</span>
+                    <span class="tree-icon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                    </span>
+                </summary>
+                <div class="group-body">
+                    <input type="text" id="friendId" class="input" placeholder="Enter Friend ID (6 chars)" maxlength="6">
+                    <button class="btn" onclick="addFriend()">Send Friend Request</button>
+                </div>
+            </details>
+
+            <details class="tree-group">
+                <summary>
+                    <span>Friends</span>
+                    <span class="tree-icon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                    </span>
+                </summary>
+                <div class="group-body">
+                    <button class="btn" onclick="loadFriends()" title="Force refresh from server">Refresh Friends</button>
+                    <div id="friendsList"></div>
+                </div>
+            </details>
+        </div>
+
+        <div class="chat-area">
+            <div id="messages" class="messages">
+                <div class="status">Connect to server and select a friend to start secure chatting</div>
+            </div>
+            <div class="input-area">
+                <textarea id="messageInput" class="msg-input" placeholder="Type your encrypted message..." rows="2"></textarea>
+                <button class="send-btn" onclick="sendMessage()">🔒 Send</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer" aria-label="Attribution">
+        <span>Made with ❤️🔐 encryption by <a href="https://developerrahul.in" target="_blank" rel="noopener noreferrer">Developer Rahul</a></span>
+    </footer>
+
+    <!-- Connection Modal -->
+    <div id="connectionModal" class="modal show">
+        <div class="modal-content">
+            <h2>🔐 Rahul's chat server</h2>
+            <p>Connect to a secure chat server</p>
+<input type="text" id="serverInput" class="input" placeholder="Enter server URL (ws://ip:8765/ws)" value="ws://127.0.0.1:8765/ws">
+            <div style="margin: 8px 0 0; font-size: 12px; color: var(--muted);">
+                or use a Rahul's server : 
+                <a href="#" onclick="insertDemoUrl(); return false;" aria-label="Use Rahul's demo server">https://secure-chat-1-vvo6.onrender.com</a>
+            </div>
+            <div class="modal-buttons">
+                <button class="test-btn" onclick="testConnection()">Test Connection</button>
+                <button class="connect-btn" onclick="connectToServer()" id="connectModalBtn">Connect to Server</button>
+            </div>
+            <div id="connectionStatus" class="status-bar">Ready to connect...</div>
+        </div>
+    </div>
+
+    <!-- Friend Request Modal -->
+    <div id="friendRequestModal" class="modal">
+        <div class="modal-content">
+            <h3>Friend Request</h3>
+            <p id="requestMessage">User <span id="requestSender"></span> wants to add you as a friend.</p>
+            <div class="modal-buttons">
+                <button class="accept-btn" onclick="respondFriendRequest(true)">Accept</button>
+                <button class="decline-btn" onclick="respondFriendRequest(false)">Decline</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Passphrase Modal -->
+    <div id="passphraseModal" class="modal">
+        <div class="modal-content">
+            <h3>🔑 Private Key Passphrase</h3>
+            <p>If your private key is protected with a passphrase, enter it below.<br>If not, leave blank and continue.</p>
+            <input type="password" id="modalPassphrase" class="passphrase-input" placeholder="Enter passphrase (or leave blank)..." autocomplete="current-password">
+            <div class="passphrase-help">
+                <strong>Instructions:</strong><br>
+                • Enter your passphrase if your key is encrypted<br>
+                • Leave blank if your key has no passphrase<br>
+                • Passphrase is case-sensitive and preserves spaces
+            </div>
+            <div id="passphraseError" class="modal-error" style="display: none;"></div>
+            <div id="debugInfo" class="debug-info" style="display: none;"></div>
+            <div class="modal-buttons">
+                <button class="decline-btn" onclick="cancelPassphrase()">Cancel</button>
+                <button class="accept-btn" onclick="continueWithPassphrase()" id="continueBtn">Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'xsukax_user_id';
+        let ws = null;
+        let connected = false;
+        let userId = null;
+        let resumeRequested = false;
+        let privateKey = null;
+        let publicKey = null;
+        let friends = [];
+        let currentFriend = null;
+        let currentRequest = null;
+        let messages = {};
+        let pendingPrivateKeyText = null;
+        let pendingPublicKeyText = null;
+        let myPublicKeyArmored = null;
+        let currentPassphrase = null;
+        let __friendsRefreshTimer = null;
+        let __resumeFallbackTimer = null;
+
+        function updateConnectionStatus(message, type = 'info') {
+            const statusBar = document.getElementById('connectionStatus');
+            statusBar.textContent = message;
+            statusBar.className = `status-bar ${type}`;
+        }
+        
+        function setStatusIndicator(state) {
+            const el = document.querySelector('.status-indicator');
+            if (!el) return;
+            el.className = `status-indicator ${state || ''}`;
+        }
+        
+        function updateSendBtnState() {
+            const btn = document.querySelector('.send-btn');
+            const canSend = !!(currentFriend && privateKey && publicKey && friends.some(f => f.user_id === currentFriend && !!f.public_key));
+            if (btn) btn.disabled = !canSend;
+        }
+
+        function updateKeyStatus(message, type = 'info') {
+            const keyStatus = document.getElementById('keyStatus');
+            keyStatus.textContent = message;
+            keyStatus.className = `key-status ${type}`;
+        }
+
+        function showPassphraseError(message) {
+            const errorDiv = document.getElementById('passphraseError');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hidePassphraseError() {
+            const errorDiv = document.getElementById('passphraseError');
+            errorDiv.style.display = 'none';
+        }
+
+        function showDebugInfo(message) {
+            const debugDiv = document.getElementById('debugInfo');
+            debugDiv.textContent = message;
+            debugDiv.style.display = 'block';
+        }
+
+        function hideDebugInfo() {
+            const debugDiv = document.getElementById('debugInfo');
+            debugDiv.style.display = 'none';
+        }
+
+        function normalizeWsUrl(u) {
+            try {
+                const url = new URL(u);
+                if (!url.pathname || url.pathname === '/') { url.pathname = '/ws'; }
+                return url.toString();
+            } catch { return u; }
+        }
+
+        function insertDemoUrl() {
+            try {
+                const input = document.getElementById('serverInput');
+                if (!input) return;
+                input.value = 'https://secure-chat-1-vvo6.onrender.com';
+                input.focus();
+                input.select();
+                updateConnectionStatus('Demo URL inserted. Click Test Connection or Connect.', 'info');
+            } catch {}
+        }
+
+        async function testConnection() {
+            let serverUrl = document.getElementById('serverInput').value.trim();
+            serverUrl = normalizeWsUrl(serverUrl);
+            if (!serverUrl) {
+                updateConnectionStatus('Please enter server URL', 'error');
+                return;
+            }
+
+            updateConnectionStatus('Testing connection...', 'info');
+            
+            try {
+                const testWs = new WebSocket(serverUrl);
+                
+                testWs.onopen = function() {
+                    updateConnectionStatus('✓ Connection test successful!', 'success');
+                    testWs.close();
+                    document.getElementById('connectModalBtn').disabled = false;
+                };
+                
+                testWs.onerror = function() {
+                    updateConnectionStatus('✗ Connection test failed', 'error');
+                    document.getElementById('connectModalBtn').disabled = true;
+                };
+                
+                setTimeout(() => {
+                    if (testWs.readyState === WebSocket.CONNECTING) {
+                        testWs.close();
+                        updateConnectionStatus('✗ Connection timeout', 'error');
+                        document.getElementById('connectModalBtn').disabled = true;
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                updateConnectionStatus('✗ Invalid server URL', 'error');
+                document.getElementById('connectModalBtn').disabled = true;
+            }
+        }
+
+        async function connectToServer() {
+            let serverUrl = document.getElementById('serverInput').value.trim();
+            serverUrl = normalizeWsUrl(serverUrl);
+            if (!serverUrl) {
+                updateConnectionStatus('Please enter server URL', 'error');
+                return;
+            }
+
+            try {
+                updateConnectionStatus('Connecting to server...', 'info');
+                document.getElementById('connectModalBtn').disabled = true;
+                setStatusIndicator('connecting');
+                
+                ws = new WebSocket(serverUrl);
+                
+                ws.onopen = function() {
+                    connected = true;
+                    updateConnectionStatus('✓ Connected successfully!', 'success');
+                    setStatusIndicator('online');
+
+                    // Re-register our public key on every connect to avoid stale server state
+                    if (myPublicKeyArmored) {
+                        sendToServer({ action: 'set_public_key', public_key: myPublicKeyArmored });
+                    }
+
+                    setTimeout(() => {
+                        document.getElementById('connectionModal').classList.remove('show');
+                    }, 1500);
+                };
+                
+                ws.onmessage = function(event) {
+                    handleServerMessage(JSON.parse(event.data));
+                };
+                
+                ws.onclose = function() {
+                    connected = false;
+                    document.getElementById('userId').textContent = 'Not Connected';
+                    showError('Disconnected from server');
+                    setStatusIndicator('offline');
+                };
+                
+                ws.onerror = function() {
+                    updateConnectionStatus('✗ Connection failed', 'error');
+                    document.getElementById('connectModalBtn').disabled = false;
+                    setStatusIndicator('offline');
+                };
+                
+            } catch (error) {
+                updateConnectionStatus('✗ Connection error: ' + error.message, 'error');
+                document.getElementById('connectModalBtn').disabled = false;
+            }
+        }
+
+        function handleServerMessage(data) {
+            const type = data.type;
+            
+            if (type === 'user_id_assigned') {
+                const assigned = data.user_id;
+                userId = assigned;
+                // Store for copy convenience only (no resume on reconnect)
+                localStorage.setItem(STORAGE_KEY, userId);
+                document.getElementById('userId').textContent = userId;
+                loadFriends();
+                startFriendsRefresh(8000);
+                
+            } else if (type === 'friend_request_received') {
+                currentRequest = data;
+                document.getElementById('requestSender').textContent = data.sender_id;
+                document.getElementById('friendRequestModal').classList.add('show');
+                // Begin short polling while user decides
+                startFriendsRefresh(12000);
+                
+            } else if (type === 'friend_added') {
+                // Deduplicate entry
+                if (!friends.some(f => f.user_id === data.friend_id)) {
+                    friends.push({
+                        user_id: data.friend_id,
+                        public_key: data.friend_public_key
+                    });
+                } else {
+                    // Update public key if present
+                    const i = friends.findIndex(f => f.user_id === data.friend_id);
+                    if (i !== -1 && data.friend_public_key) friends[i].public_key = data.friend_public_key;
+                }
+                displayFriends();
+                showSuccess('Friend added!');
+                // Request a fresh list to ensure full sync (keys/online status)
+                loadFriends();
+                // Start a short-lived refresh loop in case a message was dropped or delayed
+                startFriendsRefresh(6000);
+                
+            } else if (type === 'friends_list') {
+                friends = data.friends || [];
+                displayFriends();
+                updateSendBtnState();
+                // One more quick follow-up fetch to ensure consistency
+                startFriendsRefresh(4000);
+                
+            } else if (type === 'friend_key_updated') {
+                // Update the stored public key for this friend
+                const idx = friends.findIndex(f => f.user_id === data.friend_id);
+                if (idx !== -1) {
+                    friends[idx].public_key = data.friend_public_key;
+                } else {
+                    // Ensure friend exists in list if server sent update before list was fetched
+                    friends.push({ user_id: data.friend_id, public_key: data.friend_public_key });
+                }
+                displayFriends();
+                updateSendBtnState();
+                
+            } else if (type === 'message_received') {
+                const friendId = data.sender_id === userId ? data.target_id : data.sender_id;
+                if (!messages[friendId]) messages[friendId] = [];
+                messages[friendId].push(data);
+                if (currentFriend === friendId) displayMessages();
+                
+            } else if (type === 'conversation_messages') {
+                messages[data.target_id] = data.messages;
+                if (currentFriend === data.target_id) displayMessages();
+                
+            } else if (type === 'error') {
+                showError(data.message);
+                
+            } else if (type === 'friend_request_sent') {
+                showSuccess('Friend request sent!');
+                document.getElementById('friendId').value = '';
+                // Optimistically refresh a few times waiting for acceptance
+                startFriendsRefresh(10000);
+            }
+        }
+
+        function sendToServer(data) {
+            if (ws && connected) {
+                ws.send(JSON.stringify(data));
+            }
+        }
+
+        async function uploadKeys() {
+            const privateKeyFile = document.getElementById('privateKey').files[0];
+            const publicKeyFile = document.getElementById('publicKey').files[0];
+            
+            if (!privateKeyFile || !publicKeyFile) {
+                showError('Please select both private and public key files');
+                updateKeyStatus('Please select both key files', 'error');
+                return;
+            }
+
+            try {
+                updateKeyStatus('Reading key files...', 'loading');
+                document.getElementById('loadKeysBtn').disabled = true;
+                
+                // Read both key files
+                pendingPrivateKeyText = await privateKeyFile.text();
+                pendingPublicKeyText = await publicKeyFile.text();
+                
+                // Always show passphrase modal
+                updateKeyStatus('Waiting for passphrase input...', 'loading');
+                document.getElementById('passphraseModal').classList.add('show');
+                document.getElementById('modalPassphrase').focus();
+                hidePassphraseError();
+                hideDebugInfo();
+                
+            } catch (error) {
+                updateKeyStatus('Failed to read key files', 'error');
+                showError('Failed to read key files: ' + error.message);
+                document.getElementById('loadKeysBtn').disabled = false;
+                
+                // Clear pending data
+                pendingPrivateKeyText = null;
+                pendingPublicKeyText = null;
+            }
+        }
+
+        async function testPrivateKeyPassphrase(keyText, passphrase) {
+            try {
+                // First, read the private key
+                showDebugInfo('Reading private key...');
+                const key = await openpgp.readPrivateKey({ armoredKey: keyText });
+                
+                // Check if the key is already decrypted (no passphrase needed)
+                showDebugInfo('Checking if key is already decrypted...');
+                
+                // Try to check if key is decrypted by accessing its properties
+                try {
+                    // If we can access the key material without error, it's not encrypted
+                    const keyInfo = key.getKeyIDs();
+                    const isDecrypted = key.isDecrypted();
+                    
+                    showDebugInfo(`Key decryption status: ${isDecrypted ? 'decrypted' : 'encrypted'}`);
+                    
+                    if (isDecrypted) {
+                        // Key is not encrypted, no passphrase needed
+                        if (passphrase === '') {
+                            return { success: true, key: key, needsPassphrase: false };
+                        } else {
+                            // User provided passphrase for unencrypted key
+                            return { success: true, key: key, needsPassphrase: false, warning: 'Key is not encrypted, passphrase ignored' };
+                        }
+                    } else {
+                        // Key is encrypted, needs passphrase
+                        if (passphrase === '') {
+                            return { success: false, needsPassphrase: true, error: 'This private key requires a passphrase' };
+                        } else {
+                            // Try to decrypt with provided passphrase
+                            showDebugInfo('Attempting to decrypt with passphrase...');
+                            try {
+                                const decryptedKey = await openpgp.decryptKey({
+                                    privateKey: key,
+                                    passphrase: passphrase
+                                });
+                                return { success: true, key: decryptedKey, needsPassphrase: true };
+                            } catch (decryptError) {
+                                return { success: false, needsPassphrase: true, error: 'Incorrect passphrase' };
+                            }
+                        }
+                    }
+                } catch (accessError) {
+                    // If we can't access key properties, it might be encrypted
+                    showDebugInfo('Key appears to be encrypted, testing passphrase...');
+                    
+                    if (passphrase === '') {
+                        return { success: false, needsPassphrase: true, error: 'This private key requires a passphrase' };
+                    } else {
+                        try {
+                            const decryptedKey = await openpgp.decryptKey({
+                                privateKey: key,
+                                passphrase: passphrase
+                            });
+                            return { success: true, key: decryptedKey, needsPassphrase: true };
+                        } catch (decryptError) {
+                            return { success: false, needsPassphrase: true, error: 'Incorrect passphrase' };
+                        }
+                    }
+                }
+            } catch (error) {
+                return { success: false, needsPassphrase: false, error: 'Invalid key format: ' + error.message };
+            }
+        }
+
+        async function continueWithPassphrase() {
+            const passphrase = document.getElementById('modalPassphrase').value;
+            
+            try {
+                document.getElementById('continueBtn').disabled = true;
+                hidePassphraseError();
+                hideDebugInfo();
+                updateKeyStatus('Testing private key...', 'loading');
+                
+                showDebugInfo('Starting key validation...');
+                
+                // Test the private key with the provided passphrase
+                const keyTest = await testPrivateKeyPassphrase(pendingPrivateKeyText, passphrase);
+                
+                if (!keyTest.success) {
+                    showPassphraseError(keyTest.error);
+                    showDebugInfo('Key validation failed: ' + keyTest.error);
+                    
+                    document.getElementById('continueBtn').disabled = false;
+                    if (keyTest.needsPassphrase) {
+                        document.getElementById('modalPassphrase').select();
+                    }
+                    updateKeyStatus('Key validation failed', 'error');
+                    return;
+                }
+                
+                // Key is valid, store it
+                privateKey = keyTest.key;
+                currentPassphrase = keyTest.needsPassphrase ? passphrase : null;
+                
+                if (keyTest.warning) {
+                    showDebugInfo(keyTest.warning);
+                } else {
+                    showDebugInfo(`Private key loaded successfully! ${keyTest.needsPassphrase ? 'With passphrase' : 'No passphrase required'}`);
+                }
+                
+                // Load public key
+                updateKeyStatus('Loading public key...', 'loading');
+                showDebugInfo('Loading public key...');
+                
+                try {
+                    publicKey = await openpgp.readKey({ armoredKey: pendingPublicKeyText });
+                    myPublicKeyArmored = pendingPublicKeyText;
+                    showDebugInfo('Public key loaded successfully!');
+                } catch (pubKeyError) {
+                console.error('Public key loading error:', pubKeyError);
+                showPassphraseError('Failed to load public key: ' + pubKeyError.message);
+                showDebugInfo('Public key error: ' + pubKeyError.message);
+                document.getElementById('continueBtn').disabled = false;
+                updateKeyStatus('Public key loading failed', 'error');
+                return;
+            }
+            
+            // Send public key to server
+                updateKeyStatus('Registering with server...', 'loading');
+                showDebugInfo('Sending public key to server...');
+                
+                sendToServer({
+                    action: 'set_public_key',
+                    public_key: pendingPublicKeyText
+                });
+                
+                // Close modal and complete loading
+                document.getElementById('passphraseModal').classList.remove('show');
+                document.getElementById('modalPassphrase').value = '';
+                
+                updateKeyStatus('🔐 PGP keys loaded successfully!', 'loaded');
+                showSuccess('🔐 PGP keys loaded successfully!');
+                updateSendBtnState();
+                
+                // Clear file inputs
+                document.getElementById('privateKey').value = '';
+                document.getElementById('publicKey').value = '';
+                document.getElementById('loadKeysBtn').disabled = false;
+                
+                // Clear pending data
+                pendingPrivateKeyText = null;
+                pendingPublicKeyText = null;
+                
+            } catch (error) {
+                console.error('Unexpected error during key loading:', error);
+                showPassphraseError('Unexpected error: ' + error.message);
+                showDebugInfo(`Unexpected error: ${error.message}`);
+                document.getElementById('continueBtn').disabled = false;
+                updateKeyStatus('Key loading failed', 'error');
+            }
+        }
+
+        function cancelPassphrase() {
+            document.getElementById('passphraseModal').classList.remove('show');
+            document.getElementById('modalPassphrase').value = '';
+            updateKeyStatus('Key loading cancelled', 'error');
+            document.getElementById('loadKeysBtn').disabled = false;
+            hidePassphraseError();
+            hideDebugInfo();
+            
+            // Clear pending data
+            pendingPrivateKeyText = null;
+            pendingPublicKeyText = null;
+        }
+
+        function addFriend() {
+            const friendId = document.getElementById('friendId').value.trim().toUpperCase();
+            if (!friendId || friendId.length !== 6) {
+                showError('Please enter a valid 6-character friend ID');
+                return;
+            }
+            
+            // Make sure our public key is registered server-side before sending the request
+            if (myPublicKeyArmored) {
+                sendToServer({ action: 'set_public_key', public_key: myPublicKeyArmored });
+            }
+            
+            sendToServer({
+                action: 'send_friend_request',
+                target_id: friendId
+            });
+            // Actively poll for the new friend and their key
+            startFriendsRefresh(20000);
+        }
+
+        function respondFriendRequest(accepted) {
+            if (!currentRequest) return;
+            
+            sendToServer({
+                action: 'respond_friend_request',
+                sender_id: currentRequest.sender_id,
+                accepted: accepted
+            });
+            
+            document.getElementById('friendRequestModal').classList.remove('show');
+            
+            if (accepted) {
+                showSuccess('Friend request accepted!');
+                // Re-register our public key to guarantee server has it
+                if (myPublicKeyArmored) {
+                    sendToServer({ action: 'set_public_key', public_key: myPublicKeyArmored });
+                }
+                // Optimistically add friend locally for immediate UI feedback
+                if (!friends.some(f => f.user_id === currentRequest.sender_id)) {
+                    friends.push({ user_id: currentRequest.sender_id, public_key: null });
+                    displayFriends();
+                    updateSendBtnState();
+                }
+                // Ask server for updated friends list promptly
+                loadFriends();
+                startFriendsRefresh(15000);
+            } else {
+                showSuccess('Friend request declined');
+            }
+            
+            currentRequest = null;
+        }
+
+        async function sendMessage() {
+            if (!currentFriend) return showError('No friend selected');
+            if (!privateKey || !publicKey) return showError('PGP keys not loaded');
+            
+            const messageText = document.getElementById('messageInput').value.trim();
+            if (!messageText) return showError('Enter a message');
+            
+            try {
+                const friend = friends.find(f => f.user_id === currentFriend);
+                if (!friend || !friend.public_key) {
+                    showError('Friend public key not available');
+                    // Ask server for latest friends/keys and start short refresh
+                    loadFriends();
+                    startFriendsRefresh(8000);
+                    updateSendBtnState();
+                    return;
+                }
+                
+                const friendPublicKey = await openpgp.readKey({ armoredKey: friend.public_key });
+                
+                const encrypted = await openpgp.encrypt({
+                    message: await openpgp.createMessage({ text: messageText }),
+                    // Encrypt for both your friend and yourself so you can decrypt your own sent messages
+                    encryptionKeys: [friendPublicKey, publicKey]
+                });
+                
+                sendToServer({
+                    action: 'send_message',
+                    target_id: currentFriend,
+                    encrypted_message: encrypted
+                });
+                
+                document.getElementById('messageInput').value = '';
+                
+            } catch (error) {
+                showError('Encryption failed: ' + error.message);
+            }
+        }
+
+        function loadFriends() {
+            sendToServer({ action: 'get_friends' });
+        }
+
+        function displayFriends() {
+            const friendsList = document.getElementById('friendsList');
+            friendsList.innerHTML = '';
+            const q = (window.__friendFilter || '').toLowerCase();
+            const filtered = friends.filter(f => !q || (f.user_id && f.user_id.toLowerCase().includes(q)));
+            if (!filtered.length) {
+                const empty = document.createElement('div');
+                empty.className = 'status';
+                empty.textContent = 'No friends yet';
+                friendsList.appendChild(empty);
+                return;
+            }
+            
+            filtered.forEach(friend => {
+                const item = document.createElement('div');
+                item.className = 'friend-item';
+                item.textContent = friend.user_id;
+                item.onclick = (e) => selectFriend(friend.user_id, e);
+                friendsList.appendChild(item);
+            });
+        }
+
+        function selectFriend(friendId, e) {
+            currentFriend = friendId;
+            document.querySelectorAll('.friend-item').forEach(item => item.classList.remove('active'));
+            if (e && e.target) e.target.classList.add('active');
+            
+            // If we don't yet have their public key, start short refresh and inform user
+            const f = friends.find(x => x.user_id === friendId);
+            if (!f || !f.public_key) {
+                showError('Waiting for friend public key...');
+                startFriendsRefresh(12000);
+            }
+            updateSendBtnState();
+            
+            sendToServer({
+                action: 'get_messages',
+                target_id: friendId
+            });
+        }
+
+        function renderMessageHTML(text) {
+            try {
+                marked.setOptions({
+                    gfm: true,
+                    breaks: true,
+                    smartypants: true,
+                    mangle: false,
+                    headerIds: false,
+                    highlight: function(code, lang) {
+                        try { return hljs.highlight(code, { language: lang }).value; }
+                        catch { return hljs.highlightAuto(code).value; }
+                    }
+                });
+                const raw = marked.parse(text);
+                const clean = DOMPurify.sanitize(raw, { ADD_ATTR: [ 'target', 'rel', 'class' ] });
+                const tmp = document.createElement('div');
+                tmp.innerHTML = clean;
+                tmp.querySelectorAll('a').forEach(a => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+                return tmp.innerHTML;
+            } catch (e) {
+                return DOMPurify.sanitize(text).replace(/\n/g, '<br>');
+            }
+        }
+
+        function enhanceMessageContent(container) {
+            // Add copy buttons to code blocks
+            container.querySelectorAll('pre > code').forEach(code => {
+                const pre = code.parentElement;
+                if (pre.querySelector('.code-copy')) return;
+                const btn = document.createElement('button');
+                btn.className = 'code-copy';
+                btn.type = 'button';
+                btn.textContent = 'Copy';
+                btn.addEventListener('click', () => {
+                    const txt = code.innerText;
+                    navigator.clipboard.writeText(txt).then(() => showSuccess('Code copied'));
+                });
+                pre.appendChild(btn);
+            });
+            // Render math (KaTeX)
+            if (window.renderMathInElement) {
+                renderMathInElement(container, {
+                    delimiters: [
+                        { left: '$$', right: '$$', display: true },
+                        { left: '$', right: '$', display: false },
+                        { left: '\\(', right: '\\)', display: false },
+                        { left: '\\[', right: '\\]', display: true }
+                    ],
+                    throwOnError: false
+                });
+            } else {
+                setTimeout(() => enhanceMessageContent(container), 250);
+            }
+        }
+
+        async function displayMessages() {
+            if (!currentFriend) return;
+            
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            
+            const friendMessages = messages[currentFriend] || [];
+            
+            for (const msg of friendMessages) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.sender_id === userId ? 'own' : 'other'}`;
+                
+                const header = document.createElement('div');
+                header.className = 'msg-header';
+                header.textContent = `${msg.sender_id} - ${new Date(msg.timestamp * 1000).toLocaleTimeString()} 🔐`;
+                
+                const content = document.createElement('div');
+                content.className = 'msg-content';
+                
+                if (msg.encrypted_message && privateKey) {
+                    try {
+                        const message = await openpgp.readMessage({ armoredMessage: msg.encrypted_message });
+                        
+                        // Decrypt the message using the stored private key (already decrypted)
+                        const { data: decrypted } = await openpgp.decrypt({
+                            message,
+                            decryptionKeys: privateKey
+                        });
+                        
+                        content.innerHTML = renderMessageHTML(decrypted);
+                        enhanceMessageContent(content);
+                    } catch (error) {
+                        console.error('Decryption error:', error);
+                        content.textContent = `[Decryption Failed: ${error.message}]`;
+                        content.style.color = '#ff6b6b';
+                        content.style.fontStyle = 'italic';
+                    }
+                } else {
+                    content.textContent = '[Encrypted Message - Keys not loaded]';
+                    content.style.color = '#ffc107';
+                    content.style.fontStyle = 'italic';
+                }
+                
+                messageDiv.appendChild(header);
+                messageDiv.appendChild(content);
+                messagesDiv.appendChild(messageDiv);
+            }
+            
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function copyUserId() {
+            if (userId && userId !== 'Not Connected') {
+                navigator.clipboard.writeText(userId).then(() => {
+                    showSuccess('ID copied to clipboard!');
+                });
+            }
+        }
+
+        function ensureToastContainer() {
+            let c = document.getElementById('toastContainer');
+            if (!c) {
+                c = document.createElement('div');
+                c.id = 'toastContainer';
+                c.className = 'toast-container';
+                c.setAttribute('aria-live', 'polite');
+                c.setAttribute('aria-atomic', 'true');
+                document.body.appendChild(c);
+            }
+            return c;
+        }
+
+        function createToast(message, type = 'info', ttl = 3000) {
+            const container = ensureToastContainer();
+            const t = document.createElement('div');
+            t.className = `toast toast-${type}`;
+            t.textContent = message;
+            container.appendChild(t);
+            setTimeout(() => { t.classList.add('hide'); }, Math.max(0, ttl - 220));
+            setTimeout(() => { t.remove(); }, ttl);
+        }
+
+        function showError(message) { createToast(message, 'error', 5000); }
+        function showSuccess(message) { createToast(message, 'success', 2800); }
+
+        function startFriendsRefresh(durationMs = 8000) {
+            try {
+                if (__friendsRefreshTimer) {
+                    clearInterval(__friendsRefreshTimer);
+                    __friendsRefreshTimer = null;
+                }
+                const interval = 2000;
+                let elapsed = 0;
+                __friendsRefreshTimer = setInterval(() => {
+                    if (!connected) {
+                        clearInterval(__friendsRefreshTimer);
+                        __friendsRefreshTimer = null;
+                        return;
+                    }
+                    loadFriends();
+                    elapsed += interval;
+                    if (elapsed >= durationMs) {
+                        clearInterval(__friendsRefreshTimer);
+                        __friendsRefreshTimer = null;
+                    }
+                }, interval);
+            } catch {}
+        }
+
+        // Initialize status indicator as offline at load
+        setStatusIndicator('offline');
+
+        // Mobile drawer handlers
+        const sidebarEl = document.querySelector('.sidebar');
+        const openSidebarBtn = document.getElementById('openSidebarBtn');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+        function openMobileSidebar() {
+            if (!sidebarEl) return;
+            sidebarEl.classList.add('open');
+            sidebarBackdrop?.classList.add('show');
+            document.body.classList.add('drawer-open');
+            openSidebarBtn?.setAttribute('aria-expanded','true');
+        }
+        function closeMobileSidebar() {
+            if (!sidebarEl) return;
+            sidebarEl.classList.remove('open');
+            sidebarBackdrop?.classList.remove('show');
+            document.body.classList.remove('drawer-open');
+            openSidebarBtn?.setAttribute('aria-expanded','false');
+        }
+        openSidebarBtn?.addEventListener('click', () => {
+            if (sidebarEl.classList.contains('open')) closeMobileSidebar();
+            else openMobileSidebar();
+        });
+        sidebarBackdrop?.addEventListener('click', closeMobileSidebar);
+        window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMobileSidebar(); });
+        window.addEventListener('resize', () => { if (window.innerWidth > 600) closeMobileSidebar(); });
+
+        // Event listeners
+        const friendSearchEl = document.getElementById('friendSearch');
+        if (friendSearchEl) {
+            friendSearchEl.addEventListener('input', (e) => {
+                window.__friendFilter = e.target.value.trim();
+                displayFriends();
+            });
+        }
+        // Focus search on '/' when not typing in inputs
+        document.addEventListener('keydown', (e) => {
+            const tag = (e.target.tagName || '').toLowerCase();
+            const isEditable = e.target.isContentEditable;
+            if (e.key === '/' && !(tag === 'input' || tag === 'textarea' || isEditable)) {
+                e.preventDefault();
+                friendSearchEl?.focus();
+                friendSearchEl?.select();
+            }
+        });
+
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        // Initialize send button state
+        updateSendBtnState();
+
+        document.getElementById('modalPassphrase').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                continueWithPassphrase();
+            }
+        });
+
+        // Auto-focus on passphrase input when modal opens
+        document.getElementById('passphraseModal').addEventListener('transitionend', function() {
+            if (this.classList.contains('show')) {
+                document.getElementById('modalPassphrase').focus();
+            }
+        });
+    </script>
+</body>
+</html>
